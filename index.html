@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%230a0e0a'/><text x='16' y='22' font-family='monospace' font-size='16' font-weight='bold' fill='%2300ff41' text-anchor='middle'>XS</text></svg>">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>XSS-db | Cross-Site Scripting Database</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -93,6 +94,29 @@
   .toast.show { opacity:1; transform:translateY(0); }
   .no-results { text-align:center; padding:60px 24px; color:var(--text-muted); font-family:'Share Tech Mono',monospace; letter-spacing:2px; font-size:12px; }
   .no-results .icon { font-size:32px; margin-bottom:12px; opacity:0.3; }
+
+  .toolbar { padding:12px 24px; border-bottom:1px solid var(--border); background:var(--bg2); display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap; }
+  .export-btn { background:transparent; border:1px solid var(--green3); color:var(--green); padding:6px 14px; font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:1px; cursor:pointer; border-radius:3px; transition:all 0.2s; display:flex; align-items:center; gap:6px; }
+  .export-btn:hover { background:var(--green4); box-shadow:0 0 10px var(--green-glow); }
+  .export-btn .icon { font-size:12px; }
+  /* Add Payload Modal */
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:10000; display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity 0.2s; }
+  .modal-overlay.open { opacity:1; pointer-events:all; }
+  .modal-box { background:var(--surface); border:1px solid var(--green3); border-radius:6px; padding:28px; width:min(520px,90vw); box-shadow:0 0 40px var(--green-dim); }
+  .modal-title { font-family:'Rajdhani',sans-serif; font-size:18px; font-weight:700; color:var(--green); letter-spacing:2px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; }
+  .modal-close { background:none; border:1px solid var(--border2); color:var(--text-muted); width:28px; height:28px; cursor:pointer; border-radius:3px; font-size:16px; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
+  .modal-close:hover { color:var(--green); border-color:var(--green3); }
+  .modal-field { margin-bottom:14px; }
+  .modal-label { font-size:10px; color:var(--text-muted); letter-spacing:2px; margin-bottom:6px; display:block; }
+  .modal-input { width:100%; background:var(--bg3); border:1px solid var(--border2); color:var(--text); font-family:'Fira Code',monospace; font-size:12px; padding:8px 12px; border-radius:4px; outline:none; transition:border-color 0.2s; resize:vertical; }
+  .modal-input:focus { border-color:var(--green3); box-shadow:0 0 0 2px var(--green-dim); }
+  .modal-select { width:100%; background:var(--bg3); border:1px solid var(--border2); color:var(--text); font-family:'Fira Code',monospace; font-size:12px; padding:8px 12px; border-radius:4px; outline:none; }
+  .modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:20px; }
+  .modal-btn { padding:8px 20px; font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:1px; cursor:pointer; border-radius:4px; transition:all 0.2s; border:1px solid; }
+  .modal-btn-primary { background:var(--green4); border-color:var(--green2); color:var(--green); }
+  .modal-btn-primary:hover { box-shadow:0 0 10px var(--green-glow); }
+  .modal-btn-cancel { background:transparent; border-color:var(--border2); color:var(--text-muted); }
+  .modal-btn-cancel:hover { border-color:var(--green3); color:var(--green); }
 </style>
 </head>
 <body>
@@ -110,11 +134,52 @@
 <div class="hero">
   <div class="hero-label">&gt; CROSS-SITE SCRIPTING DATABASE</div>
   <h1>XSS-db<span class="cursor">_</span></h1>
-  <p>A comprehensive reference database of Cross-Site Scripting payloads for security researchers and penetration testers. Categorized payloads and description.</p>
+  <p>A comprehensive reference database of Cross-Site Scripting payloads for security researchers and penetration testers. Categorized payloads and description. </p>
   <div class="hero-stats">
     <div class="stat"><div class="stat-num" id="total-count">0</div><div class="stat-label">TOTAL PAYLOADS</div></div>
     <div class="stat"><div class="stat-num">6</div><div class="stat-label">CATEGORIES</div></div>
     <div class="stat"><div class="stat-num">3</div><div class="stat-label">PAGES</div></div>
+  </div>
+</div>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <button class="export-btn" onclick="exportPayloads('txt')"><span class="icon">&#8659;</span> EXPORT TXT</button>
+  <button class="export-btn" onclick="exportPayloads('json')"><span class="icon">&#8659;</span> EXPORT JSON</button>
+  <button class="export-btn" onclick="exportPayloads('csv')"><span class="icon">&#8659;</span> EXPORT CSV</button>
+  <button class="export-btn" style="border-color:var(--green2);color:var(--green)" onclick="openAddModal()"><span class="icon">&#43;</span> ADD PAYLOAD</button>
+</div>
+
+<!-- ADD PAYLOAD MODAL -->
+<div class="modal-overlay" id="add-modal" onclick="if(event.target===this)closeAddModal()">
+  <div class="modal-box">
+    <div class="modal-title">
+      ADD PAYLOAD
+      <button class="modal-close" onclick="closeAddModal()">&#215;</button>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">CATEGORY</label>
+      <select id="add-cat" class="modal-select">
+        <option value="basic">BASIC XSS</option>
+        <option value="dom">DOM-BASED</option>
+        <option value="filter">FILTER BYPASS</option>
+        <option value="polyglot">POLYGLOT</option>
+        <option value="nonenglish">NON-ENGLISH</option>
+        <option value="others">OTHERS</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">PAYLOAD CODE</label>
+      <textarea id="add-code" class="modal-input" rows="4" placeholder="e.g. &lt;img src=x onerror=alert(1)&gt;"></textarea>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">DESCRIPTION (optional)</label>
+      <input type="text" id="add-desc" class="modal-input" placeholder="Describe what this payload does...">
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-cancel" onclick="closeAddModal()">CANCEL</button>
+      <button class="modal-btn modal-btn-primary" onclick="submitAddPayload()">ADD PAYLOAD</button>
+    </div>
   </div>
 </div>
 
@@ -188,7 +253,6 @@
   </div>
   <div class="no-results hidden" id="no-results">
     <div class="icon">&#9888;</div>
-    NO PAYLOADS MATCH YOUR SEARCH
   </div>
 </div>
 
@@ -237,10 +301,12 @@ function getTagLabel(code) {
   return {label:'OTHER',cls:'ptag-other'};
 }
 
-function showToast() {
+function showToast(msg) {
   const t = document.getElementById('toast');
+  if (msg) t.textContent = msg;
+  else t.textContent = 'COPIED TO CLIPBOARD';
   t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'), 2000);
+  setTimeout(()=>{ t.classList.remove('show'); t.textContent='COPIED TO CLIPBOARD'; }, 2000);
 }
 
 function copyPayload(idx, cat) {
@@ -368,8 +434,160 @@ function searchPayloads(query) {
 ;
 
 // ============================================================
+// ============================================================
+// EXPORT
+// ============================================================
+function exportPayloads(format) {
+  // Collect visible payloads (respect active category filter)
+  const items = Array.from(document.querySelectorAll('.payload-item'))
+    .filter(el => el.style.display !== 'none' && !el.closest('.category-group.hidden'));
+  
+  const payloads = items.map(el => {
+    const cat = el.dataset.cat;
+    const i   = parseInt(el.dataset.i);
+    return { cat, code: PAYLOADS[cat][i].code, desc: PAYLOADS[cat][i].desc };
+  });
+
+  let blob, filename;
+
+  if (format === 'txt') {
+    const text = payloads.map(p => p.code).join('\n');
+    blob = new Blob([text], { type: 'text/plain' });
+    filename = 'xss-payloads.txt';
+  } else if (format === 'json') {
+    // Group by category
+    const grouped = {};
+    payloads.forEach(p => {
+      if (!grouped[p.cat]) grouped[p.cat] = [];
+      grouped[p.cat].push({ code: p.code, desc: p.desc });
+    });
+    blob = new Blob([JSON.stringify(grouped, null, 2)], { type: 'application/json' });
+    filename = 'xss-payloads.json';
+  } else if (format === 'csv') {
+    const rows = [['category','code','description']];
+    payloads.forEach(p => {
+      rows.push([p.cat, '"' + p.code.replace(/"/g,'""') + '"', '"' + p.desc.replace(/"/g,'""') + '"']);
+    });
+    blob = new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' });
+    filename = 'xss-payloads.csv';
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href    = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('EXPORTED ' + payloads.length + ' PAYLOADS');
+}
+
+// ============================================================
+// ADD PAYLOAD MODAL
+// ============================================================
+function openAddModal() {
+  document.getElementById('add-modal').classList.add('open');
+  document.getElementById('add-code').focus();
+}
+
+function closeAddModal() {
+  document.getElementById('add-modal').classList.remove('open');
+  document.getElementById('add-code').value = '';
+  document.getElementById('add-desc').value = '';
+}
+
+function submitAddPayload() {
+  const cat  = document.getElementById('add-cat').value;
+  const code = document.getElementById('add-code').value.trim();
+  const desc = document.getElementById('add-desc').value.trim() || 'Custom payload added by user.';
+
+  if (!code) {
+    document.getElementById('add-code').style.borderColor = 'var(--red)';
+    setTimeout(() => document.getElementById('add-code').style.borderColor = '', 1500);
+    return;
+  }
+
+  // Add to runtime PAYLOADS object
+  PAYLOADS[cat].push({ code, desc });
+
+  // Re-render that category
+  const grid = document.getElementById('grid-' + cat);
+  const i    = PAYLOADS[cat].length - 1;
+  const { label, cls } = getTagLabel(code);
+
+  const item = document.createElement('div');
+  item.className = 'payload-item';
+  item.dataset.cat = cat;
+  item.dataset.i = i;
+
+  const header = document.createElement('div');
+  header.className = 'payload-header';
+  header.onclick = function(){ togglePayload(this); };
+
+  const idxEl = document.createElement('div');
+  idxEl.className = 'payload-index';
+  idxEl.textContent = '#' + String(i+1).padStart(3,'0');
+
+  const codeEl = document.createElement('div');
+  codeEl.className = 'payload-code';
+  codeEl.textContent = code.length > 80 ? code.substring(0,80) + '...' : code;
+
+  const tagsEl = document.createElement('div');
+  tagsEl.className = 'payload-tags';
+  const tagSpan = document.createElement('span');
+  tagSpan.className = 'ptag ' + cls;
+  tagSpan.textContent = label;
+  tagsEl.appendChild(tagSpan);
+
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'payload-copy-btn';
+  copyBtn.textContent = 'COPY';
+  copyBtn.onclick = function(e){ e.stopPropagation(); copyPayload(i, cat); };
+
+  header.appendChild(idxEl);
+  header.appendChild(codeEl);
+  header.appendChild(tagsEl);
+  header.appendChild(copyBtn);
+
+  const detail = document.createElement('div');
+  detail.className = 'payload-detail';
+
+  const fullCodeEl = document.createElement('div');
+  fullCodeEl.className = 'payload-full-code';
+  fullCodeEl.textContent = code;
+
+  const descEl = document.createElement('div');
+  descEl.className = 'payload-desc';
+  descEl.textContent = desc;
+
+  detail.appendChild(fullCodeEl);
+  detail.appendChild(descEl);
+  item.appendChild(header);
+  item.appendChild(detail);
+  grid.appendChild(item);
+
+  // Update counts
+  const count = PAYLOADS[cat].length;
+  document.getElementById('cnt-' + cat).textContent = count;
+  document.getElementById('hdr-' + cat).textContent = count + ' payloads';
+  const total = Object.values(PAYLOADS).reduce((s,a) => s + a.length, 0);
+  document.getElementById('total-count').textContent = total;
+  document.getElementById('cnt-all').textContent = total;
+
+  closeAddModal();
+  showToast('PAYLOAD ADDED TO ' + cat.toUpperCase());
+
+  // Scroll to new payload
+  item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+
 // INIT
 // ============================================================
+// Close modal on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeAddModal();
+});
+
 renderPayloads();
 </script>
 </body>
